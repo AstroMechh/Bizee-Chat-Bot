@@ -1,4 +1,9 @@
 requests
 beautifulsoup4
-lxml 
+lxml
 python-dotenv
+langchain
+langchain-openai
+faiss-cpu
+sentence-transformers
+pytest
