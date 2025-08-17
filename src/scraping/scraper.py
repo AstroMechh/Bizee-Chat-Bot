@@ -1,17 +1,27 @@
-import os, re, requests
+import os
+import re
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 from src.config.settings import AppSettings, to_state_slug, state_to_url
 
-def fetch_html(url: str) -> str | None:
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-    }
+# Shared session with retry/backoff
+_session = requests.Session()
+_retry = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+_adapter = HTTPAdapter(max_retries=_retry)
+_session.mount("http://", _adapter)
+_session.mount("https://", _adapter)
+
+def fetch_html(url: str, state: str) -> str | None:
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     try:
-        resp = requests.get(url, headers=headers, timeout=15)
+        resp = _session.get(url, headers=headers, timeout=15)
         resp.raise_for_status()
         return resp.text
     except requests.RequestException as e:
-        print(f"[fetch_html] {url} -> {e}")
+        print(f"[fetch_html] {state} {url} -> {e}")
         return None
 
 # Optional DOM hints for odd pages; add entries only if needed.
@@ -47,7 +57,7 @@ def scrape_and_save_state_llc_data(state: str) -> tuple[str | None, str | None]:
     url = state_to_url(state)
     print(f"[scrape] {state} -> {url}")
 
-    html = fetch_html(url)
+    html = fetch_html(url, state)
     if not html:
         return None, None
 
@@ -65,3 +75,27 @@ def scrape_and_save_state_llc_data(state: str) -> tuple[str | None, str | None]:
     print(f"  saved text -> {text_path}  ({len(processed)} chars)")
 
     return raw_path, text_path
+
+
+def scrape_states(states: list[str], parallel: bool = False, max_workers: int | None = None):
+    """Scrape multiple states, optionally using parallel threads."""
+    results: list[tuple[str | None, str | None]] = []
+    if parallel:
+        workers = max_workers or min(32, len(states)) or 1
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            fut_to_state = {ex.submit(scrape_and_save_state_llc_data, s): s for s in states}
+            for fut in as_completed(fut_to_state):
+                state = fut_to_state[fut]
+                try:
+                    results.append(fut.result())
+                except Exception as e:  # pragma: no cover - defensive
+                    print(f"[scrape] {state} failed -> {e}")
+                    results.append((None, None))
+    else:
+        for s in states:
+            try:
+                results.append(scrape_and_save_state_llc_data(s))
+            except Exception as e:  # pragma: no cover - defensive
+                print(f"[scrape] {s} failed -> {e}")
+                results.append((None, None))
+    return results
