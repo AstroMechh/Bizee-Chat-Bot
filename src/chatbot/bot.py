@@ -4,6 +4,7 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores import FAISS
 from langchain_openai import ChatOpenAI
 from langchain.chains import RetrievalQA
+from langchain.memory import ConversationBufferMemory
 
 def create_qa_chain():
     """
@@ -30,12 +31,20 @@ def create_qa_chain():
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
     print("OpenAI LLM loaded successfully.")
 
-    # 3. Create the RetrievalQA chain
+    # 3. Set up memory to retain conversation context
+    memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        input_key="query",
+        return_messages=True,
+    )
+
+    # 4. Create the RetrievalQA chain with memory support
     qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
         retriever=vector_store.as_retriever(search_kwargs={'k': 3}),
-        return_source_documents=True
+        return_source_documents=True,
+        memory=memory,
     )
     print("QA chain created.")
     return qa_chain
