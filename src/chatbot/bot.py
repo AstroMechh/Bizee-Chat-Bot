@@ -44,8 +44,7 @@ def get_response(query, chain):
     """
     Gets a response from the QA chain for a given query.
     """
-    result = chain({'query': query})
-    return result['result']
+    return chain({'query': query})
 
 if __name__ == "__main__":
     qa_chain = create_qa_chain()
@@ -53,8 +52,8 @@ if __name__ == "__main__":
     question = "I want to operate under a fictitious business name"
     print(f"\nQuery: {question}")
 
-    response = get_response(question, qa_chain)
-    print(f"Answer: {response}")
+    result = get_response(question, qa_chain)
+    print(f"Answer: {result['result']}")
 
     print("-" * 30)
 
@@ -63,7 +62,7 @@ if __name__ == "__main__":
     # response_2 = get_response(question_2, qa_chain)
     # print(f"Answer: {response_2}")
     print("--- Source Chunks Used ---")
-    for i, doc in enumerate(response['source_documents']):
+    for i, doc in enumerate(result['source_documents']):
         print(f"--- Chunk {i+1} ---\n")
         print(doc.page_content)
         print("\n")
